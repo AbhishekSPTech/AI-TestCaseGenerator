@@ -1,7 +1,7 @@
 {
   "name": "testcase-agent",
   "version": "1.0.0",
-  "description": "User story (Azure DevOps / Jira) -> Claude -> test cases -> Azure Test Plans / TestRail",
+  "description": "User story (Azure DevOps or manual input) -> Claude -> test cases -> Azure Test Plans CSV",
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",

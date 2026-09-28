@@ -1,0 +1,7 @@
+As a registered user, I want to log in with my email and password so that I can access my dashboard
+Description: Users log in from the /login page using email + password.
+Acceptance Criteria:
+AC1: Valid email and password redirects the user to /dashboard.
+AC2: Invalid credentials show "Invalid email or password" and the user stays on /login.
+AC3: The account is locked for 15 minutes after 5 consecutive failed attempts.
+AC4: Email and password fields are mandatory; Login button is disabled until both are filled.

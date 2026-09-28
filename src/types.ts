@@ -1,11 +1,17 @@
 export type Category = "positive" | "negative" | "edge";
 
+export interface Criterion {
+  id: string; // AC1, AC2, ...
+  text: string;
+}
+
 export interface TestStep {
   action: string;
   expected: string;
 }
 
 export interface TestCase {
+  id?: string; // TC-001, assigned in code after generation
   title: string;
   category: Category;
   priority: 1 | 2 | 3 | 4;
@@ -24,12 +30,11 @@ export interface TestSuite {
 }
 
 export interface Requirement {
-  source: "azure" | "jira" | "file";
+  source: "azure" | "manual";
   id: string;
   title: string;
   description: string;
   acceptanceCriteria: string;
+  criteria: Criterion[]; // acceptanceCriteria split into AC1, AC2, ...
   areaPath?: string;
-  iterationPath?: string;
-  apiUrl?: string; // REST url of the work item, used to link test cases back
 }
