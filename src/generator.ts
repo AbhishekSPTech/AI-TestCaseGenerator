@@ -18,13 +18,13 @@ Coverage rules:
 Writing rules:
 - One behaviour per test case. Title format: "Verify <expected behaviour> when <condition>".
 - Steps are concrete user actions; each step has an observable expected result.
-- Never use concrete test data values (ids, names, emails, amounts, dates, line item numbers...).
-  Use a {PascalCase} placeholder starting with "Test" instead, e.g. "Booking ID: {TestBookingId}",
-  "{TestInterpreterA}", "{TestLineItem1}". Use the same placeholder for the same thing in
+- Never use concrete test data values (ids, names, emails, amounts, dates, item numbers...).
+  Use a {PascalCase} placeholder starting with "Test" instead, e.g. "Order ID: {TestOrderId}",
+  "{TestUserA}", "{TestItem1}". Use the same placeholder for the same thing in
   preconditions, test_data, steps and expected results. For edge cases, name the property being
   tested, e.g. {TestEmailWith255Chars}, {TestNameWithUnicode}.
 - In test_data, list each placeholder the test uses with what it must be, separated by "; ",
-  e.g. "{TestBookingId}: booking with Interpreter A replaced by Interpreter B; {TestLineItem1}: active line item of Interpreter B".
+  e.g. "{TestOrderId}: order with User A replaced by User B; {TestItem1}: active item of User B".
 - Do NOT invent features the story doesn't describe. If something is ambiguous or missing
   (limits, error messages, roles), list it in open_questions and state the assumption you used.
 - Priority: 1 = critical path / AC blocker, 2 = high, 3 = medium, 4 = low.
@@ -51,7 +51,7 @@ const TOOL: Anthropic.Tool = {
             priority: { type: "integer", enum: [1, 2, 3, 4] },
             covers: { type: "array", items: { type: "string" }, description: 'Criterion ids, e.g. ["AC1"]' },
             preconditions: { type: "string" },
-            test_data: { type: "string", description: "Placeholders used and what each must be, e.g. \"{TestBookingId}: confirmed booking\"" },
+            test_data: { type: "string", description: "Placeholders used and what each must be, e.g. \"{TestOrderId}: confirmed order\"" },
             steps: {
               type: "array",
               items: {
