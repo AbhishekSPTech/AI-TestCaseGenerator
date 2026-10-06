@@ -1,0 +1,48 @@
+﻿ID,Work Item Type,Title,Test Step,Step Action,Step Expected,Area Path,Assigned To,State
+,Test Case,99999 | Verify successful login redirects user to dashboard with valid email and password,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User has valid credentials registered in the system.
+Test data: {TestEmail}: valid email for registered account; {TestPassword}: correct password for {TestEmail}",Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmail} into the email field and {TestPassword} into the password field,Email field contains {TestEmail} and Password field contains {TestPassword}.,,,
+,,,4,Click the Login button,User is redirected to /dashboard.,,,
+,Test Case,99999 | Verify 'Invalid email or password' message for incorrect credentials,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User account exists with known credentials.
+Test data: {TestEmail}: valid email for registered account; {TestPassword}: incorrect password for {TestEmail}",Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmail} into the email field and {TestPassword} into the password field,Email field contains {TestEmail} and Password field contains {TestPassword}.,,,
+,,,4,Click the Login button,Error message 'Invalid email or password' is displayed. User remains on /login page.,,,
+,Test Case,99999 | Verify account lockout after five consecutive failed attempts,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User account exists in the system.
+Test data: {TestEmail}: valid email for registered account; {TestPassword}: incorrect password for {TestEmail}",Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmail} into the email field and {TestPassword} into the password field,Email field contains {TestEmail} and Password field contains {TestPassword}.,,,
+,,,4,Click the Login button five times consecutively,"Error message 'Invalid email or password' is displayed for each attempt. On the fifth attempt, account gets locked for 15 minutes. User remains on /login page.",,,
+,Test Case,99999 | Verify 'Login' button is disabled when mandatory fields are empty,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,2,Leave Email and Password fields empty,Login button is disabled.,,,
+,Test Case,99999 | Verify 'Login' button gets enabled when mandatory fields are filled,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,Test data: {TestEmail}: syntactically valid email; {TestPassword}: any password,Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmail} into the email field and {TestPassword} into the password field,Email field contains {TestEmail} and Password field contains {TestPassword}. Login button is enabled.,,,
+,Test Case,99999 | Verify account remains locked when login is attempted during lockout period,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User account is in locked state due to 5 failed logins.
+Test data: {TestEmail}: valid email for registered account; {TestPassword}: correct password for {TestEmail}",Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page within the lockout period,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmail} into the email field and {TestPassword} into the password field,Error message indicating account lockout is displayed. User remains on /login page.,,,
+,Test Case,99999 | Verify lockout is lifted after 15 minutes of inactivity post-lock,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User account was locked due to 5 failed logins and 15 minutes have elapsed since lockout.
+Test data: {TestEmail}: valid email for registered account; {TestPassword}: correct password for {TestEmail}",Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page after lockout period has elapsed,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmail} into the email field and {TestPassword} into the password field,Email field contains {TestEmail} and Password field contains {TestPassword}. User is redirected to /dashboard.,,,
+,Test Case,99999 | Verify system prevents login attempt with invalid email format,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,Test data: {TestEmailInvalid}: malformed email syntax; {TestPassword}: any password,Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmailInvalid} into the email field and {TestPassword} into the password field,Email field contains {TestEmailInvalid} and Password field contains {TestPassword}. Error message 'Invalid email or password' is displayed. User remains on /login page.,,,
+,Test Case,99999 | Verify long input values are handled for Email and Password fields,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,Test data: {TestEmailWith320Chars}: valid email format but very long; {TestPasswordWith1024Chars}: maximum length password,Preconditions are met and test data is available,,,
+,,,2,Navigate to the /login page,Login form is displayed with Email and Password fields.,,,
+,,,3,Enter {TestEmailWith320Chars} into the email field and {TestPasswordWith1024Chars} into the password field,"Email field contains {TestEmailWith320Chars} and Password field contains {TestPasswordWith1024Chars}. Login button is enabled, and values are correctly displayed.",,,
+,Test Case,99999 | Verify functionality when multiple users attempt failed logins concurrently for the same account,,,,YourProject\YourTeam,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User account exists in the system, not currently locked.
+Test data: {TestEmail}: valid email for registered account; {TestPasswordIncorrect1}: incorrect password; {TestPasswordIncorrect2}: another incorrect password",Preconditions are met and test data is available,,,
+,,,2,Simulate two users entering {TestEmail} with {TestPasswordIncorrect1} and {TestPasswordIncorrect2} concurrently,"Increment the failure count per session, and lockout consistency is maintained after 5 failed attempts.",,,

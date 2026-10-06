@@ -30,7 +30,8 @@ Set `LLM_PROVIDER` in `.env`, or override it per run with `--provider`:
 | `auto` (default) | Azure OpenAI if its endpoint, deployment and key are all set, otherwise Claude | |
 
 Manual text file format: an optional `User Story #<id>` line (e.g. `User Story #12345`), then the title, then the description,
-then a line `Acceptance Criteria:` followed by the criteria (see `samples/login_story.txt`).
+then a line `Acceptance Criteria:` followed by the criteria (see `samples/login_story.txt`;
+`samples/login_story_azure_import.csv` is the CSV generated from it, for reference).
 The id prefixes every test case title (`12345 | Verify ...`); `--story-id` overrides it.
 
 Acceptance criteria are split into AC1, AC2, ... (one per bullet / numbered line / "ACn:" line,
