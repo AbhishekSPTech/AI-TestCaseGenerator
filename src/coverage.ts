@@ -1,4 +1,4 @@
-/** Split acceptance criteria into numbered items and check which ones the test cases cover. */
+// Split acceptance criteria into numbered items and check which ones the test cases cover.
 import type { Criterion, TestCase } from "./types.js";
 
 // A line that starts a new criterion: bullet, "1." / "1)", "AC1:", or "Scenario ..."
@@ -7,7 +7,7 @@ const STRIP = /^(?:[-*•]\s*|\d+[.)]\s*|AC\s*\d+\s*[:.)-]?\s*)/i;
 // Gherkin lines that continue the current scenario rather than start a new criterion
 const CONTINUATION = /^(?:and|but|when|then)\b/i;
 
-/** Normalise "ac 1", "AC1: Valid login" etc. to "AC1"; null if it isn't a criterion reference. */
+// Normalise "ac 1", "AC1: Valid login" etc. to "AC1"; null if it isn't a criterion reference.
 export function normaliseRef(ref: string): string | null {
   const m = ref.match(/AC\s*(\d+)/i);
   return m ? `AC${Number(m[1])}` : null;

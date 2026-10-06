@@ -12,12 +12,12 @@
  * Exit code 1 if any acceptance criterion has no test case (disable with --no-strict).
  */
 import "dotenv/config";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { computeCoverage } from "./coverage.js";
 import { exportAzureCsv } from "./exporters.js";
-import { generateTestCases } from "./generator.js";
+import { generateTestCases, PROVIDERS, type Provider } from "./generator.js";
 import { printSummary, writeReviewFile } from "./reporter.js";
 import { fetchAzureStory, loadFromFile, promptForStory } from "./sources.js";
 import type { Requirement } from "./types.js";
@@ -33,18 +33,57 @@ function env(name: string): string {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
+const USAGE = `Usage:
+  npm start -- --azure <work item id>   read the user story from the Azure board
+  npm start -- --file <path>            manual input from a text file (e.g. samples/login_story.txt)
+  npm start                             type the user story in
+Options: --out <dir>  --instructions "<extra guidance>"  --no-strict
+         --story-id <id>   user story id for manual input (prefixes test case titles: "<id> | ...")
+         --provider auto|claude|azure-openai   (default: LLM_PROVIDER in .env, else auto)`;
+
+/** Accept "story.txt" when the file lives in samples/. */
+function resolveStoryFile(path: string): string {
+  if (existsSync(path)) return path;
+  const inSamples = join("samples", path);
+  if (existsSync(inSamples)) return inSamples;
+  console.error(`File not found: ${path}\n\n${USAGE}`);
+  process.exit(1);
+}
+
+function parseCli() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        azure: { type: "string" },
+        file: { type: "string" },
+        out: { type: "string", default: "output" },
+        instructions: { type: "string", default: "" },
+        "no-strict": { type: "boolean", default: false },
+        provider: { type: "string" },
+        "story-id": { type: "string" },
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const opt = msg.match(/'(--[^']+)'/)?.[1];
+    const hint = opt && /\.\w+$/.test(opt) ? `\nDid you mean: npm start -- --file ${opt.slice(2)}` : "";
+    console.error(`${msg}${hint}\n\n${USAGE}`);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
-  const { values: a } = parseArgs({
-    options: {
-      azure: { type: "string" },
-      file: { type: "string" },
-      out: { type: "string", default: "output" },
-      instructions: { type: "string", default: "" },
-      "no-strict": { type: "boolean", default: false },
-    },
-  });
+  const { values: a, positionals } = parseCli();
+  if (!a.file && positionals.length === 1) a.file = positionals[0]; // npm start -- story.txt
+  if (a.file) a.file = resolveStoryFile(a.file);
   if (a.azure && a.file) {
     console.error("Use either --azure <id> or --file <path> (or neither, to type the story in).");
+    process.exit(1);
+  }
+  const provider = (a.provider || process.env.LLM_PROVIDER || "auto").trim().toLowerCase() as Provider;
+  if (!PROVIDERS.includes(provider)) {
+    console.error(`Unknown LLM provider "${provider}". Use one of: ${PROVIDERS.join(", ")}.`);
     process.exit(1);
   }
 
@@ -57,11 +96,12 @@ async function main(): Promise<void> {
   } else {
     req = await promptForStory();
   }
+  if (a["story-id"] && req.source === "manual") req.id = a["story-id"].trim();
   console.log(`Loaded ${req.source} story ${req.id}: ${req.title}`);
   console.log(`Found ${req.criteria.length} acceptance criteria`);
 
   // 2. LLM
-  const suite = await generateTestCases(req, process.env.CLAUDE_MODEL || "claude-sonnet-5", a.instructions);
+  const suite = await generateTestCases(req, provider, a.instructions);
   const coverage = computeCoverage(req.criteria, suite.test_cases);
   printSummary(suite, coverage);
 

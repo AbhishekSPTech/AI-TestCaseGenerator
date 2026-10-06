@@ -1,3 +1,4 @@
+User Story #99999
 As a registered user, I want to log in with my email and password so that I can access my dashboard
 Description: Users log in from the /login page using email + password.
 Acceptance Criteria:

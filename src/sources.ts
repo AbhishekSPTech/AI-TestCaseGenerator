@@ -1,4 +1,4 @@
-/** Get a requirement (user story) from Azure DevOps or from manual input (text file or typed in). */
+// Get a requirement (user story) from Azure DevOps or from manual input (text file or typed in).
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { parseCriteria } from "./coverage.js";
@@ -59,21 +59,25 @@ export async function fetchAzureStory(
   };
 }
 
-// ------------------------------------------------------------------ Manual input
-/** Text file: first line = title; an "Acceptance Criteria:" line splits description from AC. */
+// Manual input
+const STORY_ID_LINE = /^\s*(?:user\s*story|story|id)\s*(?:id)?\s*[:#]?\s*(\d+)\s*$/i;
+
+// Text file: optional "User Story <id>" line, then title; an "Acceptance Criteria:" line splits description from AC.
 export function loadFromFile(path: string): Requirement {
-  const [first, ...rest] = readFileSync(path, "utf8").replace(/\r/g, "").split("\n");
+  let [first, ...rest] = readFileSync(path, "utf8").replace(/\r/g, "").split("\n");
+  const storyId = first.match(STORY_ID_LINE)?.[1];
+  if (storyId) [first, ...rest] = rest;
   const body = rest.join("\n");
   const m = body.match(/^\s*acceptance criteria\s*:?\s*$/im);
   const description = (m ? body.slice(0, m.index) : body).replace(/^\s*description\s*:\s*/i, "").trim();
   const acceptanceCriteria = m ? body.slice(m.index! + m[0].length).trim() : "";
   return {
-    source: "manual", id: "MANUAL", title: first.trim(), description,
+    source: "manual", id: storyId ?? "MANUAL", title: (first ?? "").trim(), description,
     acceptanceCriteria, criteria: parseCriteria(acceptanceCriteria),
   };
 }
 
-/** Interactive entry in the terminal. Multi-line fields end with an empty line. */
+// Interactive entry in the terminal. Multi-line fields end with an empty line.
 export async function promptForStory(): Promise<Requirement> {
   // Read via the line iterator (not rl.question) so piped input isn't dropped.
   const rl = createInterface({ input: process.stdin });
@@ -94,12 +98,13 @@ export async function promptForStory(): Promise<Requirement> {
     return out.join("\n");
   };
   try {
+    const storyId = (await ask("User story ID (optional): ")).trim();
     const title = (await ask("User story title: ")).trim();
     if (!title) throw new Error("A title is required.");
     const description = await multiline("Description");
     const acceptanceCriteria = await multiline("Acceptance criteria");
     return {
-      source: "manual", id: "MANUAL", title, description,
+      source: "manual", id: storyId || "MANUAL", title, description,
       acceptanceCriteria, criteria: parseCriteria(acceptanceCriteria),
     };
   } finally {
