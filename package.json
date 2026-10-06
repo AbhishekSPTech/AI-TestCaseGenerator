@@ -1,7 +1,13 @@
 {
   "name": "testcase-agent",
   "version": "1.0.0",
-  "description": "User story (Azure DevOps or manual input) -> Claude -> test cases -> Azure Test Plans CSV",
+  "description": "CLI agent that turns user stories (Azure DevOps or manual input) into positive, negative and edge test cases with Claude or Azure OpenAI, and exports Azure Test Plans CSV",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AbhishekSPTech/TestCaseGenerator.git"
+  },
+  "keywords": ["test-cases", "test-generation", "azure-devops", "azure-test-plans", "claude", "azure-openai", "llm", "qa"],
   "type": "module",
   "scripts": {
     "start": "tsx src/main.ts",

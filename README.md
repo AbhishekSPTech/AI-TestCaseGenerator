@@ -1,6 +1,24 @@
 # Test Case Generator Agent (TypeScript)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js >= 18](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![LLM: Claude | Azure OpenAI](https://img.shields.io/badge/LLM-Claude%20%7C%20Azure%20OpenAI-6E56CF)](#choosing-the-llm)
+
+A command-line agent that turns a user story into a ready-to-import set of manual test cases.
+Give it a story from an Azure DevOps board, a text file or the terminal; it asks an LLM (Claude or
+Azure OpenAI) for positive, negative and edge-case tests, checks that every acceptance criterion
+is covered, and writes a CSV you can import straight into Azure Test Plans plus a review file
+with coverage, open questions and assumptions.
+
 User Story (Azure DevOps board or manual input) -> Claude (or Azure OpenAI) -> positive / negative / edge test cases -> Azure Test Plans import CSV.
+
+**Features**
+- Reads user stories from Azure DevOps (`--azure <id>`), a text file or typed input
+- Splits acceptance criteria into AC1..n and tracks which test cases cover each one
+- Re-asks the LLM for any criterion left uncovered; exits 1 if one is still missing (CI-friendly)
+- Uses `{TestPlaceholder}` values instead of invented test data
+- Exports Azure Test Plans-compatible CSV (same columns as an Azure export)
 
 ## Setup (Node 18+)
     npm install
