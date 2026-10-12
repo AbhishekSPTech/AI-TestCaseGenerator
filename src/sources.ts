@@ -1,5 +1,6 @@
 // Get a requirement (user story) from Azure DevOps or from manual input (text file or typed in).
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { parseCriteria } from "./coverage.js";
 import type { Requirement } from "./types.js";
@@ -102,29 +103,62 @@ export function loadFromFile(path: string): Requirement {
   };
 }
 
-// Interactive entry in the terminal. Multi-line fields end with an empty line.
-export async function promptForStory(): Promise<Requirement> {
-  // Read via the line iterator (not rl.question) so piped input isn't dropped.
+/** Accept "story.txt" when the file lives in samples/, and paths pasted with quotes; null if not found. */
+export function resolveStoryFile(path: string): string | null {
+  const p = path.trim().replace(/^(["'])(.*)\1$/, "$2");
+  if (p && existsSync(p)) return p;
+  const inSamples = join("samples", p);
+  return p && existsSync(inSamples) ? inSamples : null;
+}
+
+// ------------------------------------------------------------------ terminal input
+/** Show a prompt and read one line; "" at end of input. */
+export type Ask = (prompt: string) => Promise<string>;
+
+export interface Terminal {
+  ask: Ask;
+  ended: () => boolean; // stdin closed (e.g. piped input used up)
+  close: () => void;
+}
+
+/**
+ * One reader for the whole session. Reads via the line iterator (not rl.question) so piped input
+ * isn't dropped, and so several prompts can share stdin without fighting over it.
+ */
+export function openTerminal(): Terminal {
   const rl = createInterface({ input: process.stdin });
   const lines = rl[Symbol.asyncIterator]();
-  const ask = async (prompt: string): Promise<string> => {
-    process.stdout.write(prompt);
-    const next = await lines.next();
-    return next.done ? "" : next.value;
+  let done = false;
+  return {
+    async ask(prompt) {
+      process.stdout.write(prompt);
+      if (done) return "";
+      const next = await lines.next();
+      done = !!next.done;
+      return next.done ? "" : next.value;
+    },
+    ended: () => done,
+    close: () => rl.close(),
   };
+}
+
+// Interactive entry in the terminal. Multi-line fields end with an empty line.
+export async function promptForStory(ask?: Ask): Promise<Requirement> {
+  const term = ask ? null : openTerminal();
+  const read = ask ?? term!.ask;
   const multiline = async (label: string): Promise<string> => {
     console.log(`${label} (finish with an empty line):`);
     const out: string[] = [];
     for (;;) {
-      const line = await ask("> ");
+      const line = await read("> ");
       if (!line.trim()) break;
       out.push(line);
     }
     return out.join("\n");
   };
   try {
-    const storyId = (await ask("User story ID (optional): ")).trim();
-    const title = (await ask("User story title: ")).trim();
+    const storyId = (await read("User story ID (optional): ")).trim();
+    const title = (await read("User story title: ")).trim();
     if (!title) throw new Error("A title is required.");
     const description = await multiline("Description");
     const acceptanceCriteria = await multiline("Acceptance criteria");
@@ -133,6 +167,6 @@ export async function promptForStory(): Promise<Requirement> {
       acceptanceCriteria, criteria: parseCriteria(acceptanceCriteria),
     };
   } finally {
-    rl.close();
+    term?.close();
   }
 }

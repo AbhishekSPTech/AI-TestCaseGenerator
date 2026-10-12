@@ -9,14 +9,14 @@ import { computeCoverage, type Coverage } from "./coverage.js";
 import { exportAzureCsv } from "./exporters.js";
 import { createLlm, generateTestCases, type Llm, type Provider } from "./generator.js";
 import { printSummary, verdict, writeReviewFile } from "./reporter.js";
-import { fetchAzureStory, loadFromFile, promptForStory } from "./sources.js";
+import { type Ask, fetchAzureStory, loadFromFile, promptForStory } from "./sources.js";
 import type { Requirement, TestSuite } from "./types.js";
 import { validateRequirement } from "./validation.js";
 
 export type StorySource =
   | { kind: "azure"; id: string }
   | { kind: "file"; path: string }
-  | { kind: "prompt" };
+  | { kind: "prompt"; ask?: Ask }; // ask: share the caller's terminal reader (console app)
 
 export interface RunOptions {
   source: StorySource;
@@ -56,7 +56,7 @@ async function loadStory(source: StorySource): Promise<Requirement> {
     case "file":
       return loadFromFile(source.path);
     case "prompt":
-      return promptForStory();
+      return promptForStory(source.ask);
   }
 }
 

@@ -42,6 +42,30 @@ precedence over `.env`.
     npm start -- --file story.txt --story-id 12345   # manual story: prefix titles with "12345 | "
     npm start -- --azure 12345 --provider azure-openai   # pick the LLM for this run
 
+## Console app
+    npm run app
+
+An interactive menu for the same workflow, for when you'd rather not remember flags:
+
+    ────────────────────────────────────────────────────────────
+     Test Case Generator
+    ────────────────────────────────────────────────────────────
+     LLM:          Claude (claude-sonnet-5)
+     Azure DevOps: your-org
+     Output:       output    Strict coverage: on
+    ────────────────────────────────────────────────────────────
+      1) Generate from an Azure DevOps work item
+      2) Generate from a story text file
+      3) Type in a user story
+      4) Settings
+      5) Quit
+
+- The header shows which LLM and Azure DevOps org `.env` is set up for, or what's missing.
+- Settings (provider, output folder, strict coverage, extra instructions) apply for the rest of
+  the session; the defaults come from `.env`.
+- After each run it prints the CSV and review file paths and can show the review notes.
+- Errors (file not found, bad PAT, LLM failure) are shown and the menu comes back. Quit with 5.
+
 ## Choosing the LLM
 Set `LLM_PROVIDER` in `.env`, or override it per run with `--provider`:
 
@@ -98,7 +122,7 @@ What the tests cover: AC parsing (numbered, bulleted, Gherkin, nested HTML lists
 decoding, Azure DevOps errors (bad PAT, 404, bad id), response validation (malformed, duplicate and
 empty responses), the bounded follow-up call, coverage statuses, CSV escaping against a golden file
 (`test/golden/azure_import.csv`; regenerate it with `UPDATE_GOLDEN=1 npm test` after an intended
-format change), and the full run with its exit codes. CI runs both on every push
+format change), the full run with its exit codes, and scripted console app sessions. CI runs both on every push
 (`.github/workflows/ci.yml`).
 
 ## Project layout
@@ -111,4 +135,6 @@ format change), and the full run with its exit codes. CI runs both on every push
     src/reporter.ts    console summary + review file
     src/run.ts         the workflow, returns a result (no process.exit; used by the tests)
     src/main.ts        CLI: arguments -> run() -> exit code
+    src/console.ts     interactive console app (menu around run())
+    src/app.ts         console app entry point (npm run app)
     test/              node:test suites, fake LLM in test/helpers.ts

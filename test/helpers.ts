@@ -70,6 +70,20 @@ export const edgeCase = {
   steps: [{ action: "Enter \" {TestEmail} \" and {TestPassword}, click Login", expected: "User reaches /dashboard" }],
 };
 
+const step = (action: string, expected: string) => ({ action, expected });
+
+// One test case per acceptance criterion of samples/login_story.txt
+export const AC_CASES = [
+  { title: "Verify redirect to dashboard with valid email and password", category: "positive", priority: 1, covers: ["AC1"],
+    steps: [step("Log in with {TestEmail} and {TestPassword}", "User is redirected to /dashboard")] },
+  { title: "Verify error with invalid credentials", category: "negative", priority: 1, covers: ["AC2"],
+    steps: [step("Log in with {TestEmail} and a wrong password", 'Message "Invalid email or password" is shown; user stays on /login')] },
+  { title: "Verify account is locked after 5 consecutive failed attempts", category: "edge", priority: 1, covers: ["AC3"],
+    steps: [step("Fail login 5 consecutive times", "The account is locked for 15 minutes")] },
+  { title: "Verify Login button is disabled until email and password are filled", category: "negative", priority: 2, covers: ["AC4"],
+    steps: [step("Leave the password field empty", "Login button is disabled; both fields are mandatory")] },
+];
+
 export const toolOutput = (...cases: unknown[]) => ({
   summary: "Login with email and password.",
   assumptions: ["Emails are case-insensitive"],
