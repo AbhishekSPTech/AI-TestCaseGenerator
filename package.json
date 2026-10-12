@@ -13,6 +13,7 @@
     "start": "tsx src/main.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "app": "tsx src/app.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "engines": {
