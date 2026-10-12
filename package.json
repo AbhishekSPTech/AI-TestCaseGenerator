@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AbhishekSPTech/TestCaseGenerator.git"
+    "url": "https://github.com/AbhishekSPTech/AI-TestCaseGenerator.git"
   },
   "keywords": ["test-cases", "test-generation", "azure-devops", "azure-test-plans", "claude", "azure-openai", "llm", "qa"],
   "type": "module",
