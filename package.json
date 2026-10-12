@@ -12,7 +12,8 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "tsx --test test/*.test.ts"
   },
   "engines": {
     "node": ">=18"
