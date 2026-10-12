@@ -1,25 +1,11 @@
 // End to end: sample story file + fake LLM -> CSV, review file and exit code. No API keys needed.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { run, type RunOptions } from "../src/run.js";
-import { fakeLlm, noLog, toolOutput } from "./helpers.js";
-
-const step = (action: string, expected: string) => ({ action, expected });
-
-// One test case per acceptance criterion of samples/login_story.txt
-const AC_CASES = [
-  { title: "Verify redirect to dashboard with valid email and password", category: "positive", priority: 1, covers: ["AC1"],
-    steps: [step("Log in with {TestEmail} and {TestPassword}", "User is redirected to /dashboard")] },
-  { title: "Verify error with invalid credentials", category: "negative", priority: 1, covers: ["AC2"],
-    steps: [step("Log in with {TestEmail} and a wrong password", 'Message "Invalid email or password" is shown; user stays on /login')] },
-  { title: "Verify account is locked after 5 consecutive failed attempts", category: "edge", priority: 1, covers: ["AC3"],
-    steps: [step("Fail login 5 consecutive times", "The account is locked for 15 minutes")] },
-  { title: "Verify Login button is disabled until email and password are filled", category: "negative", priority: 2, covers: ["AC4"],
-    steps: [step("Leave the password field empty", "Login button is disabled; both fields are mandatory")] },
-];
+import { AC_CASES, fakeLlm, noLog, toolOutput } from "./helpers.js";
 
 function options(over: Partial<RunOptions> = {}): RunOptions {
   return {
@@ -79,7 +65,7 @@ describe("run", () => {
   it("writes no files when generation fails", async () => {
     const opts = options();
     await assert.rejects(run(opts, { llm: fakeLlm(new Error("boom")), log: noLog }), /boom/);
-    assert.equal(existsSync(join(opts.outDir, "manual_as-a-registered-user-i-want-to-log-in-with_azure_import.csv")), false);
+    assert.deepEqual(readdirSync(opts.outDir), []);
   });
 
   it("uses --story-id for manual stories", async () => {
