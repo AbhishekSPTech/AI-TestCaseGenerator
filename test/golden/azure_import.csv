@@ -1,0 +1,9 @@
+﻿ID,Work Item Type,Title,Test Step,Step Action,Step Expected,Area Path,Assigned To,State
+,Test Case,"99999 | Verify ""Invalid email or password"", shown on failure",,,,Proj\Team,Jane Doe <jane.doe@example.com>,Design
+,,,1,"Preconditions: User {TestUserA} exists
+Test data: {TestEmail}: email, with a comma",Preconditions are met and test data is available,,,
+,,,2,"Enter {TestEmail}
+and a wrong password","Message ""Invalid email or password""",,,
+,,,3,Click Login,User stays on /login,,,
+,Test Case,99999 | Verify login without preconditions,,,,Proj\Team,Jane Doe <jane.doe@example.com>,Design
+,,,1,Click Login,"Dashboard, with widgets, is shown",,,

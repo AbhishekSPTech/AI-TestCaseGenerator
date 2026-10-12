@@ -1,9 +1,14 @@
-/** Turn a Requirement into structured test cases using Claude (forced tool use = guaranteed JSON shape). */
+/**
+ * Turn a Requirement into structured test cases using Claude or Azure OpenAI (forced tool use).
+ * The tool output is still treated as untrusted and validated in validation.ts before use.
+ */
 import Anthropic from "@anthropic-ai/sdk";
 import { AzureOpenAI } from "openai";
-import { computeCoverage, normaliseRef } from "./coverage.js";
+import { computeCoverage } from "./coverage.js";
+import { azureTitle, MAX_TITLE_LENGTH } from "./exporters.js";
 import { requirementToPrompt } from "./sources.js";
 import type { Requirement, TestSuite } from "./types.js";
+import { dedupeCases, InvalidResponseError, parseSuite } from "./validation.js";
 
 export const SYSTEM_PROMPT = `You are a senior QA engineer writing manual test cases from a user story.
 
@@ -72,21 +77,21 @@ const TOOL: Anthropic.Tool = {
 const MAX_TOKENS = 16000;
 const TRUNCATED = "Output was cut off at max_tokens — split the story or raise max_tokens.";
 
-/** One LLM call: user message in, test suite out. */
-type LlmCall = (userMsg: string) => Promise<TestSuite>;
+// Both SDKs retry rate limits, 5xx and connection errors with backoff. Bound that explicitly so a
+// failing provider fails predictably instead of retrying for a long time.
+const MAX_RETRIES = Number(process.env.LLM_MAX_RETRIES || 2);
+const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_SECONDS || 300) * 1000;
 
-/** Normalise the tool output from either provider into a TestSuite. */
-function toSuite(input: unknown): TestSuite {
-  const suite = input as TestSuite;
-  suite.test_cases ??= [];
-  for (const tc of suite.test_cases) {
-    tc.covers = [...new Set((tc.covers ?? []).map((r) => normaliseRef(r) ?? r.trim()))];
-  }
-  return suite;
+/** One LLM call: user message in, the raw (not yet validated) save_test_cases tool input out. */
+export type LlmCall = (userMsg: string) => Promise<unknown>;
+export interface Llm {
+  name: string;
+  call: LlmCall;
 }
 
 function claudeCaller(model: string): LlmCall {
-  const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
+  // reads ANTHROPIC_API_KEY from env
+  const client = new Anthropic({ maxRetries: MAX_RETRIES, timeout: TIMEOUT_MS });
   return async (userMsg) => {
     const resp = await client.messages.create({
       model,
@@ -98,14 +103,19 @@ function claudeCaller(model: string): LlmCall {
     });
     if (resp.stop_reason === "max_tokens") throw new Error(TRUNCATED);
     const block = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (!block) throw new Error(`Model did not return test cases (stop_reason: ${resp.stop_reason})`);
-    return toSuite(block.input);
+    if (!block) throw new InvalidResponseError(`no save_test_cases tool call (stop_reason: ${resp.stop_reason})`);
+    return block.input;
   };
 }
 
 function azureOpenAICaller(deployment: string): LlmCall {
   // reads AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY from env
-  const client = new AzureOpenAI({ deployment, apiVersion: process.env.OPENAI_API_VERSION || "2024-10-21" });
+  const client = new AzureOpenAI({
+    deployment,
+    apiVersion: process.env.OPENAI_API_VERSION || "2024-10-21",
+    maxRetries: MAX_RETRIES,
+    timeout: TIMEOUT_MS,
+  });
   return async (userMsg) => {
     const resp = await client.chat.completions.create({
       model: deployment,
@@ -124,9 +134,13 @@ function azureOpenAICaller(deployment: string): LlmCall {
     if (choice?.finish_reason === "length") throw new Error(TRUNCATED);
     const call = choice?.message.tool_calls?.find((c) => c.type === "function" && c.function.name === TOOL.name);
     if (call?.type !== "function") {
-      throw new Error(`Model did not return test cases (finish_reason: ${choice?.finish_reason})`);
+      throw new InvalidResponseError(`no save_test_cases tool call (finish_reason: ${choice?.finish_reason})`);
     }
-    return toSuite(JSON.parse(call.function.arguments));
+    try {
+      return JSON.parse(call.function.arguments);
+    } catch {
+      throw new InvalidResponseError("the tool call arguments are not valid JSON");
+    }
   };
 }
 
@@ -136,7 +150,7 @@ export type Provider = (typeof PROVIDERS)[number];
 const AZURE_VARS = ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT"];
 
 //"claude" / "azure-openai" force that provider; "auto" uses Azure OpenAI when all AZURE_OPENAI_ settings are present, otherwise Claude.
-function createLlm(provider: Provider): { name: string; call: LlmCall } {
+export function createLlm(provider: Provider): Llm {
   if (!PROVIDERS.includes(provider)) {
     throw new Error(`Unknown LLM provider "${provider}". Use one of: ${PROVIDERS.join(", ")}.`);
   }
@@ -166,25 +180,34 @@ function createLlm(provider: Provider): { name: string; call: LlmCall } {
 
 const union = (a: string[] = [], b: string[] = []) => [...new Set([...a, ...b])];
 
+export interface GenerateOptions {
+  extraInstructions?: string;
+  log?: (msg: string) => void;
+}
+
 /**
- * Generate the suite, then make one follow-up call for any acceptance criteria left uncovered.
+ * Generate the suite, then make at most one follow-up call for acceptance criteria left uncovered.
+ * Every response is validated (malformed test cases are dropped) and duplicate titles are removed.
+ * If the follow-up call fails, the first pass is kept and the failure becomes a warning; those
+ * criteria stay uncovered, so strict mode still fails the run.
  * Test case ids (TC-001, ...) are assigned here, after all calls, so they are gap-free.
  */
 export async function generateTestCases(
-  req: Requirement, provider: Provider, extraInstructions = "",
+  req: Requirement, llm: Llm, { extraInstructions = "", log = console.log }: GenerateOptions = {},
 ): Promise<TestSuite> {
-  const llm = createLlm(provider);
-  console.log(`Using ${llm.name}`);
+  log(`Using ${llm.name}`);
   const base = requirementToPrompt(req) + (extraInstructions
     ? `\n\n<additional_instructions>\n${extraInstructions}\n</additional_instructions>` : "");
 
-  const suite = await llm.call(base);
+  const { suite, rejected } = parseSuite(await llm.call(base));
+  const warnings = [...rejected];
 
   const missing = computeCoverage(req.criteria, suite.test_cases).uncovered;
   if (missing.length) {
-    console.log(`Not covered by the first pass: ${missing.join(", ")} — asking for additional test cases...`);
+    log(`Not covered by the first pass: ${missing.join(", ")} — asking for additional test cases...`);
     const existing = suite.test_cases.map((c) => `- ${c.title}`).join("\n");
-    const extra = await llm.call(`${base}
+    try {
+      const extra = parseSuite(await llm.call(`${base}
 
 <existing_test_cases>
 ${existing}
@@ -192,30 +215,38 @@ ${existing}
 
 The existing test cases above do not cover ${missing.join(", ")}. Generate ADDITIONAL test cases
 (positive, negative and edge as relevant) ONLY for those criteria, without repeating the existing ones.
-Each new test case must list the criterion it verifies in covers.`);
-    suite.test_cases.push(...extra.test_cases);
-    suite.assumptions = union(suite.assumptions, extra.assumptions);
-    suite.open_questions = union(suite.open_questions, extra.open_questions);
+Each new test case must list the criterion it verifies in covers.`));
+      suite.test_cases.push(...extra.suite.test_cases);
+      suite.assumptions = union(suite.assumptions, extra.suite.assumptions);
+      suite.open_questions = union(suite.open_questions, extra.suite.open_questions);
+      warnings.push(...extra.rejected);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`Follow-up call for ${missing.join(", ")} failed, kept the first pass only: ${msg}`);
+    }
   }
 
+  const deduped = dedupeCases(suite.test_cases);
+  suite.test_cases = deduped.cases;
+  warnings.push(...deduped.removed);
+
   suite.test_cases.forEach((tc, i) => { tc.id = `TC-${String(i + 1).padStart(3, "0")}`; });
-  suite.warnings = qualityChecks(suite);
+  suite.warnings = [...warnings, ...qualityChecks(suite, req)];
   return suite;
 }
 
 /** Cheap sanity checks so a reviewer knows where to look. */
-export function qualityChecks(suite: TestSuite): string[] {
+export function qualityChecks(suite: TestSuite, req: Requirement): string[] {
   const warnings: string[] = [];
-  const cases = suite.test_cases ?? [];
+  const cases = suite.test_cases;
   for (const cat of ["positive", "negative", "edge"] as const) {
     if (!cases.some((c) => c.category === cat)) warnings.push(`No ${cat} test cases were generated.`);
   }
-  const seen = new Set<string>();
   for (const c of cases) {
-    const key = c.title.trim().toLowerCase();
-    if (seen.has(key)) warnings.push(`Duplicate title: ${c.title}`);
-    seen.add(key);
-    if (!c.steps?.length) warnings.push(`No steps: ${c.title}`);
+    if (req.criteria.length && !c.covers?.length) warnings.push(`${c.id} does not reference any acceptance criterion.`);
+    if (azureTitle(c, req).length > MAX_TITLE_LENGTH) {
+      warnings.push(`${c.id} title is over ${MAX_TITLE_LENGTH} characters and will be shortened in the CSV.`);
+    }
   }
   return warnings;
 }

@@ -9,20 +9,30 @@ function basicAuth(user: string, secret: string): Record<string, string> {
 }
 
 const ENTITIES: Record<string, string> = {
-  "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " ",
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
 };
+
+function decodeEntity(match: string, name: string): string {
+  const code = /^#x[0-9a-f]+$/i.test(name) ? parseInt(name.slice(2), 16)
+    : /^#\d+$/.test(name) ? Number(name.slice(1)) : NaN;
+  if (Number.isNaN(code)) return ENTITIES[name.toLowerCase()] ?? match;
+  return code <= 0x10ffff ? String.fromCodePoint(code) : match;
+}
 
 /** Azure DevOps stores Description / Acceptance Criteria as HTML. */
 export function htmlToText(s?: string | null): string {
   if (!s) return "";
   return s
-    .replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>|<\/tr>|<\/h\d>/gi, "\n")
+    // a nested <ul>/<ol> starts on its own line instead of running into the parent item
+    .replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>|<\/tr>|<\/h\d>|<[uo]l[^>]*>/gi, "\n")
     .replace(/<li[^>]*>/gi, "- ")
     .replace(/<[^>]+>/g, "")
-    .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m) => ENTITIES[m] ?? m)
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    // one pass, so "&amp;lt;" becomes "&lt;" and is not decoded twice
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, decodeEntity)
+    .replace(/ /g, " ")
     .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n+/g, "\n\n")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -42,16 +52,31 @@ export function requirementToPrompt(r: Requirement): string {
 export async function fetchAzureStory(
   org: string, project: string, workItemId: string, pat: string,
 ): Promise<Requirement> {
-  const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/wit/workitems/${workItemId}?api-version=7.1`;
-  const res = await fetch(url, { headers: basicAuth("", pat) });
-  if (!res.ok) throw new Error(`Azure DevOps GET work item ${workItemId} failed: ${res.status} ${await res.text()}`);
+  if (!/^\d+$/.test(workItemId.trim())) {
+    throw new Error(`Azure work item id must be a number, got "${workItemId}".`);
+  }
+  const id = workItemId.trim();
+  const url = `https://dev.azure.com/${encodeURIComponent(org)}/${encodeURIComponent(project)}`
+    + `/_apis/wit/workitems/${id}?api-version=7.1`;
+  const res = await fetch(url, { headers: { ...basicAuth("", pat), Accept: "application/json" } });
+  const prefix = `Azure DevOps GET work item ${id} failed`;
+  // An invalid or expired PAT can come back as 203 + an HTML sign-in page instead of 401.
+  if (res.status === 401 || res.status === 203) {
+    throw new Error(`${prefix}: the PAT was rejected (${res.status}). Check ADO_PAT is valid, not expired, `
+      + `and has Work Items: Read for org "${org}".`);
+  }
+  if (res.status === 404) throw new Error(`${prefix}: not found (404). Check ADO_ORG, ADO_PROJECT and the id.`);
+  if (!res.ok) throw new Error(`${prefix}: ${res.status} ${(await res.text()).slice(0, 500)}`);
+  if (!res.headers.get("content-type")?.includes("application/json")) {
+    throw new Error(`${prefix}: expected JSON but got ${res.headers.get("content-type") ?? "no content type"}.`);
+  }
   const data: any = await res.json();
   const f = data.fields ?? {};
   const acceptanceCriteria = htmlToText(f["Microsoft.VSTS.Common.AcceptanceCriteria"]);
   return {
     source: "azure",
-    id: String(data.id),
-    title: f["System.Title"] ?? "",
+    id: String(data.id ?? id),
+    title: String(f["System.Title"] ?? "").trim(),
     description: htmlToText(f["System.Description"]),
     acceptanceCriteria,
     criteria: parseCriteria(acceptanceCriteria),
@@ -64,7 +89,7 @@ const STORY_ID_LINE = /^\s*(?:user\s*story|story|id)\s*(?:id)?\s*[:#]?\s*(\d+)\s
 
 // Text file: optional "User Story <id>" line, then title; an "Acceptance Criteria:" line splits description from AC.
 export function loadFromFile(path: string): Requirement {
-  let [first, ...rest] = readFileSync(path, "utf8").replace(/\r/g, "").split("\n");
+  let [first, ...rest] = readFileSync(path, "utf8").replace(/^﻿/, "").replace(/\r/g, "").trimStart().split("\n");
   const storyId = first.match(STORY_ID_LINE)?.[1];
   if (storyId) [first, ...rest] = rest;
   const body = rest.join("\n");

@@ -5,7 +5,13 @@ import type { Requirement, TestCase, TestStep, TestSuite } from "./types.js";
 
 const BOM = "﻿"; // so Excel opens UTF-8 correctly
 
-const titleOf = (c: TestCase, req: Requirement) => (req.id !== "MANUAL" ? `${req.id} | ${c.title}` : c.title);
+/** Azure DevOps rejects work item titles longer than this. */
+export const MAX_TITLE_LENGTH = 255;
+
+export const azureTitle = (c: TestCase, req: Requirement) => (req.id !== "MANUAL" ? `${req.id} | ${c.title}` : c.title);
+
+const fitTitle = (title: string) =>
+  title.length > MAX_TITLE_LENGTH ? `${title.slice(0, MAX_TITLE_LENGTH - 1)}…` : title;
 
 // The CSV import has no preconditions field, so they go in as a setup step 1.
 function stepsOf(c: TestCase): TestStep[] {
@@ -17,7 +23,8 @@ function stepsOf(c: TestCase): TestStep[] {
     : c.steps;
 }
 
-export function exportAzureCsv(suite: TestSuite, req: Requirement, path: string): void {
+/** The CSV text (with BOM). Quoting of commas, quotes and newlines is done by csv-stringify. */
+export function azureCsv(suite: TestSuite, req: Requirement): string {
   const areaPath = req.areaPath || process.env.ADO_AREA_PATH || "";
   const assignedTo = process.env.ADO_ASSIGNED_TO || "";
   const rows: (string | number)[][] = [[
@@ -25,8 +32,12 @@ export function exportAzureCsv(suite: TestSuite, req: Requirement, path: string)
     "Area Path", "Assigned To", "State",
   ]];
   for (const c of suite.test_cases) {
-    rows.push(["", "Test Case", titleOf(c, req), "", "", "", areaPath, assignedTo, "Design"]);
+    rows.push(["", "Test Case", fitTitle(azureTitle(c, req)), "", "", "", areaPath, assignedTo, "Design"]);
     stepsOf(c).forEach((s, i) => rows.push(["", "", "", i + 1, s.action, s.expected, "", "", ""]));
   }
-  writeFileSync(path, BOM + stringify(rows), "utf8");
+  return BOM + stringify(rows);
+}
+
+export function exportAzureCsv(suite: TestSuite, req: Requirement, path: string): void {
+  writeFileSync(path, azureCsv(suite, req), "utf8");
 }
