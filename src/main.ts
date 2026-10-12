@@ -17,7 +17,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { computeCoverage } from "./coverage.js";
 import { exportAzureCsv } from "./exporters.js";
-import { generateTestCases, PROVIDERS, type Provider } from "./generator.js";
+import { createLlm, generateTestCases, PROVIDERS, type Provider } from "./generator.js";
 import { printSummary, writeReviewFile } from "./reporter.js";
 import { fetchAzureStory, loadFromFile, promptForStory } from "./sources.js";
 import type { Requirement } from "./types.js";
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   console.log(`Found ${req.criteria.length} acceptance criteria`);
 
   // 2. LLM
-  const suite = await generateTestCases(req, provider, a.instructions);
+  const suite = await generateTestCases(req, createLlm(provider), { extraInstructions: a.instructions });
   const coverage = computeCoverage(req.criteria, suite.test_cases);
   printSummary(suite, coverage);
 
