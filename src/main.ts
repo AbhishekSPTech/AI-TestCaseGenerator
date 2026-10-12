@@ -14,11 +14,10 @@
  * The workflow itself lives in run.ts; this file only parses arguments and sets the exit code.
  */
 import "dotenv/config";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { PROVIDERS, type Provider } from "./generator.js";
 import { run, type RunOptions } from "./run.js";
+import { resolveStoryFile } from "./sources.js";
 
 const USAGE = `Usage:
   npm start -- --azure <work item id>   read the user story from the Azure board
@@ -31,12 +30,10 @@ Options: --out <dir>  --instructions "<extra guidance>"  --no-strict
 /** A command-line mistake: printed together with the usage text. */
 class UsageError extends Error {}
 
-/** Accept "story.txt" when the file lives in samples/. */
-function resolveStoryFile(path: string): string {
-  if (existsSync(path)) return path;
-  const inSamples = join("samples", path);
-  if (existsSync(inSamples)) return inSamples;
-  throw new UsageError(`File not found: ${path}`);
+function storyFile(path: string): string {
+  const found = resolveStoryFile(path);
+  if (!found) throw new UsageError(`File not found: ${path}`);
+  return found;
 }
 
 function parseCli(argv: string[]): RunOptions {
@@ -71,7 +68,7 @@ function parseCli(argv: string[]): RunOptions {
     throw new UsageError(`Unknown LLM provider "${provider}". Use one of: ${PROVIDERS.join(", ")}.`);
   }
   return {
-    source: a.azure ? { kind: "azure", id: a.azure } : file ? { kind: "file", path: resolveStoryFile(file) } : { kind: "prompt" },
+    source: a.azure ? { kind: "azure", id: a.azure } : file ? { kind: "file", path: storyFile(file) } : { kind: "prompt" },
     outDir: a.out!,
     provider,
     strict: !a["no-strict"],
